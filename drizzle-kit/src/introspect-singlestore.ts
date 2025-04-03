@@ -13,6 +13,8 @@ import {
 } from './serializer/singlestoreSchema';
 import { indexName } from './serializer/singlestoreSerializer';
 
+export const vectorColumnTypes = ['vector', 'bit', 'halfvec', 'sparsevec'];
+
 // time precision to fsp
 // {mode: "string"} for timestamp by default
 
@@ -49,9 +51,9 @@ const singlestoreImportsList = new Set([
 	'tinyint',
 	'varbinary',
 	'varchar',
-	'vector',
 	'year',
 	'enum',
+	...vectorColumnTypes,
 ]);
 
 const objToStatement = (json: any) => {
@@ -781,9 +783,11 @@ const column = (
 		return out;
 	}
 
-	if (lowered.startsWith('vector')) {
-		const [dimensions, elementType] = lowered.substring('vector'.length + 1, lowered.length - 1).split(',');
-		let out = `${casing(name)}: vector(${
+	const matchedVectorType = vectorColumnTypes.find((type) => lowered.startsWith(type));
+
+	if (matchedVectorType) {
+		const [dimensions, elementType] = lowered.substring(matchedVectorType.length + 1, lowered.length - 1).split(',');
+		let out = `${casing(name)}: ${matchedVectorType}(${
 			dbColumnName({ name, casing: rawCasing, withMode: true })
 		}{ dimensions: ${dimensions}, elementType: ${elementType} })`;
 
@@ -791,7 +795,7 @@ const column = (
 		return out;
 	}
 
-	console.log('uknown', type);
+	console.log('unknown', type);
 	return `// Warning: Can't parse ${type} from database\n\t// ${type}Type: ${type}("${name}")`;
 };
 

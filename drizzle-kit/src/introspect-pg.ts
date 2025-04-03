@@ -12,6 +12,7 @@ import './@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import { Casing } from './cli/validations/common';
 import { assertUnreachable } from './global';
+import { vectorColumnTypes } from './introspect-singlestore';
 import {
 	CheckConstraint,
 	Column,
@@ -55,7 +56,7 @@ const pgImportsList = new Set([
 	'bigint',
 	'doublePrecision',
 	'uuid',
-	'vector',
+	...vectorColumnTypes,
 	'point',
 	'line',
 	'geometry',
@@ -364,8 +365,13 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 					patched = patched.startsWith('numeric(') ? 'numeric' : patched;
 					patched = patched.startsWith('time(') ? 'time' : patched;
 					patched = patched.startsWith('timestamp(') ? 'timestamp' : patched;
-					patched = patched.startsWith('vector(') ? 'vector' : patched;
 					patched = patched.startsWith('geometry(') ? 'geometry' : patched;
+
+					const matchedVectorType = vectorColumnTypes.find((type) => patched.startsWith(`${type}(`));
+					if (matchedVectorType) {
+						patched = matchedVectorType;
+					}
+
 					return patched;
 				})
 				.filter((type) => {
@@ -395,8 +401,13 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 					patched = patched.startsWith('numeric(') ? 'numeric' : patched;
 					patched = patched.startsWith('time(') ? 'time' : patched;
 					patched = patched.startsWith('timestamp(') ? 'timestamp' : patched;
-					patched = patched.startsWith('vector(') ? 'vector' : patched;
 					patched = patched.startsWith('geometry(') ? 'geometry' : patched;
+
+					const matchedVectorType = vectorColumnTypes.find((type) => patched.startsWith(`${type}(`));
+					if (matchedVectorType) {
+						patched = matchedVectorType;
+					}
+
 					return patched;
 				})
 				.filter((type) => {
@@ -822,8 +833,11 @@ const mapDefault = (
 		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 	}
 
-	if (lowered.startsWith('vector')) {
-		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+	const matchedVectorType = vectorColumnTypes.find((type) => lowered.startsWith(type));
+	if (matchedVectorType) {
+		return typeof defaultValue !== 'undefined'
+			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			: '';
 	}
 
 	if (lowered.startsWith('char')) {
@@ -1069,14 +1083,15 @@ const column = (
 		return out;
 	}
 
-	if (lowered.startsWith('vector')) {
+	const matchedVectorType = vectorColumnTypes.find((type) => lowered.startsWith(type));
+	if (matchedVectorType) {
 		let out: string;
 		if (lowered.length !== 6) {
-			out = `${withCasing(name, casing)}: vector(${dbColumnName({ name, casing, withMode: true })}{ dimensions: ${
-				lowered.substring(7, lowered.length - 1)
-			} })`;
+			out = `${withCasing(name, casing)}: ${matchedVectorType}(${
+				dbColumnName({ name, casing, withMode: true })
+			}{ dimensions: ${lowered.substring(7, lowered.length - 1)} })`;
 		} else {
-			out = `${withCasing(name, casing)}: vector(${dbColumnName({ name, casing })})`;
+			out = `${withCasing(name, casing)}: ${matchedVectorType}(${dbColumnName({ name, casing })})`;
 		}
 
 		return out;
